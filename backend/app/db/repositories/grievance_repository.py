@@ -8,12 +8,17 @@ from app.models.grievance import Grievance
 def create_grievance(
     db: Session,
     payload: dict,
+    *,
+    commit: bool = True,
 ):
     grievance = Grievance(**payload)
 
     db.add(grievance)
-    db.commit()
-    db.refresh(grievance)
+    db.flush()
+
+    if commit:
+        db.commit()
+        db.refresh(grievance)
 
     return grievance
 

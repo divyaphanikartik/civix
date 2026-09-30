@@ -8,6 +8,7 @@ export default function Hotspots() {
     hotspots,
     loading,
     error,
+    refresh,
   } = useHotspots();
 
   const [sector, setSector] = useState("ALL");
@@ -72,6 +73,14 @@ export default function Hotspots() {
           />
         </div>
 
+        <button
+          className="primary-button"
+          type="button"
+          onClick={refresh}
+        >
+          Refresh
+        </button>
+
         <div className="filter-result-count">
           {filteredHotspots.length} hotspots
         </div>
@@ -85,7 +94,7 @@ export default function Hotspots() {
 
       {error && (
         <div className="error-state">
-          {error}
+          {error.message || "Failed to load hotspots."}
         </div>
       )}
 

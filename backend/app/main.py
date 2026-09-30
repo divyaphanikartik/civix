@@ -1,10 +1,13 @@
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
+from sqlalchemy import text
 
 from app.api.whatsapp import router as whatsapp_router
 from app.api.hotspots import router as hotspots_router
 from app.api.grievances import router as grievances_router
 from app.api.projects import router as projects_router
 from app.api.datasets import router as datasets_router
+from app.config import settings
 from app.db.database import Base, engine
 
 # Import models so SQLAlchemy registers their tables with Base.
@@ -18,6 +21,14 @@ app = FastAPI(
     title="Civix API",
     description="Citizen-driven infrastructure intelligence platform",
     version="1.0.0",
+)
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[settings.FRONTEND_URL],
+    allow_credentials=True,
+    allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    allow_headers=["*"],
 )
 
 
@@ -35,7 +46,11 @@ app.include_router(datasets_router, prefix="/api")
 
 @app.get("/health")
 def health():
-    return {
-        "status": "ok",
-        "service": "civix-backend",
-    }
+    return {"status": "ok", "service": "civix-backend"}
+
+
+@app.get("/health/ready")
+def readiness():
+    with engine.connect() as connection:
+        connection.execute(text("SELECT 1"))
+    return {"status": "ready", "service": "civix-backend"}

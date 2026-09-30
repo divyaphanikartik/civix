@@ -1,30 +1,44 @@
 const API_BASE_URL =
   import.meta.env.VITE_API_URL || "/api";
 
-async function request(
-  endpoint,
-  options = {}
-) {
+async function request(endpoint, options = {}) {
   const response = await fetch(
     `${API_BASE_URL}${endpoint}`,
     {
       headers: {
         "Content-Type": "application/json",
+        "ngrok-skip-browser-warning": "true",
         ...(options.headers || {}),
       },
       ...options,
     }
   );
 
-  if (!response.ok) {
-    const message = await response.text();
+  const contentType =
+    response.headers.get("content-type") || "";
 
+  const responseText = await response.text();
+
+  if (!response.ok) {
     throw new Error(
-      message || `Request failed: ${response.status}`
+      responseText ||
+        `Request failed: ${response.status}`
     );
   }
 
-  return response.json();
+  if (!contentType.includes("application/json")) {
+    throw new Error(
+      `Expected JSON from ${API_BASE_URL}${endpoint}, but received ${contentType || "unknown content type"}`
+    );
+  }
+
+  try {
+    return JSON.parse(responseText);
+  } catch {
+    throw new Error(
+      `Invalid JSON response from ${API_BASE_URL}${endpoint}`
+    );
+  }
 }
 
 export async function getHotspots() {

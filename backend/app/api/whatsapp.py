@@ -1,6 +1,6 @@
 import logging
 
-from fastapi import APIRouter, BackgroundTasks, HTTPException, Request
+from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import Response
 from sqlalchemy.exc import IntegrityError
 from twilio.twiml.messaging_response import MessagingResponse
@@ -12,7 +12,6 @@ from app.db.repositories.whatsapp_repository import (
     get_message_by_id,
 )
 from app.services.whatsapp_service import validate_webhook_signature
-from app.workers.grievance_worker import process_whatsapp_message
 
 logger = logging.getLogger(__name__)
 
@@ -37,7 +36,6 @@ def _twiml_response(body: str | None = None) -> Response:
 @router.post("/whatsapp")
 async def whatsapp_webhook(
     request: Request,
-    background_tasks: BackgroundTasks,
 ):
     """Receive inbound WhatsApp messages from Twilio."""
     form = await request.form()
@@ -46,7 +44,7 @@ async def whatsapp_webhook(
     signature = request.headers.get("X-Twilio-Signature")
 
     if not validate_webhook_signature(
-        str(request.url),
+        f"{settings.PUBLIC_API_URL}/api/webhooks/whatsapp",
         params,
         signature,
     ):
@@ -106,17 +104,10 @@ async def whatsapp_webhook(
                 db.rollback()
                 message = get_message_by_id(db, message_id)
 
-            if message and message_type == "audio" and media_url:
-                background_tasks.add_task(
-                    process_whatsapp_message,
-                    message_id,
-                )
-
     finally:
         db.close()
 
-    # Immediate acknowledgement. Long-running Gemini processing happens
-    # in the background so Twilio does not wait for AI processing.
+    # Acknowledge immediately. The dedicated worker picks up RECEIVED audio.
     return _twiml_response(
         "Thank you. Your Civix grievance has been received and is being processed."
     )

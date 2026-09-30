@@ -6,41 +6,37 @@ from app.schemas.grievance import CitizenGrievanceExtraction
 from app.schemas.project import ProjectConceptNote
 
 
-client = genai.Client(
-    api_key=settings.GEMINI_API_KEY
-)
+client = genai.Client(api_key=settings.GEMINI_API_KEY)
 
 
-def extract_grievance_from_audio(
-    audio_bytes: bytes
-):
+GRIEVANCE_INSTRUCTIONS = """
+Extract the citizen grievance from the supplied message.
 
-    instructions = """
-    Transcribe the citizen's spoken complaint.
+Translate it to English when necessary.
 
-    Translate it to English.
+Extract:
+- infrastructure sector
+- asset type
+- failure mode
+- urgency
+- spoken/written landmarks
+- reported location
 
-    Extract:
-    - infrastructure sector
-    - asset type
-    - failure mode
-    - urgency
-    - spoken landmarks
-    - reported location
+Do not invent information.
 
-    Do not invent information.
+If the citizen explicitly mentions a locality, landmark, street, village,
+colony, ward, town, or other place, use it as the incident location.
+If no location is provided, leave the location fields empty rather than guessing.
+"""
 
-    If the citizen explicitly mentions
-    a locality, use that locality as
-    the incident location.
-    """
 
+def extract_grievance_from_audio(audio_bytes: bytes):
     parts = [
         types.Part.from_bytes(
             data=audio_bytes,
-            mime_type="audio/ogg"
+            mime_type="audio/ogg",
         ),
-        instructions
+        GRIEVANCE_INSTRUCTIONS,
     ]
 
     response = client.models.generate_content(
@@ -49,29 +45,41 @@ def extract_grievance_from_audio(
         config=types.GenerateContentConfig(
             response_mime_type="application/json",
             response_schema=CitizenGrievanceExtraction,
-            temperature=0.0
-        )
+            temperature=0.0,
+        ),
     )
 
-    return CitizenGrievanceExtraction.model_validate_json(
-        response.text
-    )
+    return CitizenGrievanceExtraction.model_validate_json(response.text)
 
 
-def generate_project_concept_note(
-    prompt: str
-):
+def extract_grievance_from_text(text: str):
+    contents = [
+        GRIEVANCE_INSTRUCTIONS,
+        "Citizen message:\n" + text,
+    ]
 
     response = client.models.generate_content(
-        model="gemini-2.5-pro",
+        model="gemini-2.5-flash",
+        contents=contents,
+        config=types.GenerateContentConfig(
+            response_mime_type="application/json",
+            response_schema=CitizenGrievanceExtraction,
+            temperature=0.0,
+        ),
+    )
+
+    return CitizenGrievanceExtraction.model_validate_json(response.text)
+
+
+def generate_project_concept_note(prompt: str):
+    response = client.models.generate_content(
+        model="gemini-3.1-pro-preview",
         contents=prompt,
         config=types.GenerateContentConfig(
             response_mime_type="application/json",
             response_schema=ProjectConceptNote,
-            temperature=0.2
-        )
+            temperature=0.2,
+        ),
     )
 
-    return ProjectConceptNote.model_validate_json(
-        response.text
-    )
+    return ProjectConceptNote.model_validate_json(response.text)

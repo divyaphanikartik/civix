@@ -1,88 +1,91 @@
 services:
-
   postgres:
     image: postgres:16-alpine
-
     container_name: civix-postgres
-
     restart: unless-stopped
-
     environment:
       POSTGRES_DB: civix
       POSTGRES_USER: civix
-      POSTGRES_PASSWORD: civix
-
-    ports:
-      - "5431:5432"
-
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
     volumes:
       - civix_postgres_data:/var/lib/postgresql/data
-
     healthcheck:
-      test:
-        [
-          "CMD-SHELL",
-          "pg_isready -U civix -d civix"
-        ]
+      test: ["CMD-SHELL", "pg_isready -U civix -d civix"]
       interval: 5s
       timeout: 5s
       retries: 10
-
 
   backend:
     build:
       context: ./backend
       dockerfile: Dockerfile
-
     container_name: civix-backend
-
     restart: unless-stopped
-
     environment:
-      DATABASE_URL: postgresql://civix:civix@postgres:5432/civix
-
+      ENVIRONMENT: production
+      DATABASE_URL: postgresql://civix:${POSTGRES_PASSWORD}@postgres:5432/civix
       GEMINI_API_KEY: ${GEMINI_API_KEY}
-
       TWILIO_ACCOUNT_SID: ${TWILIO_ACCOUNT_SID}
       TWILIO_AUTH_TOKEN: ${TWILIO_AUTH_TOKEN}
       TWILIO_WHATSAPP_NUMBER: ${TWILIO_WHATSAPP_NUMBER}
-      TWILIO_VALIDATE_WEBHOOK_SIGNATURE: ${TWILIO_VALIDATE_WEBHOOK_SIGNATURE:-false}
-
-      FRONTEND_URL: http://localhost:5173
-
-    ports:
-      - "8000:8000"
-
+      TWILIO_VALIDATE_WEBHOOK_SIGNATURE: ${TWILIO_VALIDATE_WEBHOOK_SIGNATURE}
+      FRONTEND_URL: ${PUBLIC_APP_URL}
+      PUBLIC_API_URL: ${PUBLIC_API_URL}
+      PUBLIC_APP_URL: ${PUBLIC_APP_URL}
+    expose:
+      - "8000"
     depends_on:
       postgres:
         condition: service_healthy
+    command: ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--proxy-headers", "--forwarded-allow-ips=*", "--workers", "2"]
 
-    volumes:
-      - ./backend/app:/app/app
-
+  worker:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: civix-worker
+    restart: unless-stopped
+    environment:
+      ENVIRONMENT: production
+      DATABASE_URL: postgresql://civix:${POSTGRES_PASSWORD}@postgres:5432/civix
+      GEMINI_API_KEY: ${GEMINI_API_KEY}
+      TWILIO_ACCOUNT_SID: ${TWILIO_ACCOUNT_SID}
+      TWILIO_AUTH_TOKEN: ${TWILIO_AUTH_TOKEN}
+      TWILIO_WHATSAPP_NUMBER: ${TWILIO_WHATSAPP_NUMBER}
+      TWILIO_VALIDATE_WEBHOOK_SIGNATURE: ${TWILIO_VALIDATE_WEBHOOK_SIGNATURE}
+      FRONTEND_URL: ${PUBLIC_APP_URL}
+      PUBLIC_API_URL: ${PUBLIC_API_URL}
+      PUBLIC_APP_URL: ${PUBLIC_APP_URL}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    command: ["python", "-m", "app.workers.runner"]
 
   frontend:
     build:
       context: ./frontend
       dockerfile: Dockerfile
-
+      args:
+        VITE_API_URL: ${PUBLIC_API_URL}/api
     container_name: civix-frontend
-
     restart: unless-stopped
-
     ports:
       - "5173:5173"
-
-    environment:
-      VITE_API_URL: http://localhost:8000/api
-
-    volumes:
-      - ./frontend:/app
-      - /app/node_modules
-
     depends_on:
       - backend
 
+  ngrok:
+    image: ngrok/ngrok:latest
+    container_name: civix-ngrok
+    command:
+      - "http"
+      - "backend:8000"
+      - "--url=https://${NGROK_DOMAIN}"
+      - "--host-header=rewrite"
+    environment:
+      NGROK_AUTHTOKEN: ${NGROK_AUTHTOKEN}
+    depends_on:
+      - backend
 
 volumes:
   civix_postgres_data:

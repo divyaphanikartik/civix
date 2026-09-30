@@ -8,12 +8,17 @@ from app.models.hotspot import Hotspot
 def create_hotspot(
     db: Session,
     payload: dict,
+    *,
+    commit: bool = True,
 ):
     hotspot = Hotspot(**payload)
 
     db.add(hotspot)
-    db.commit()
-    db.refresh(hotspot)
+    db.flush()
+
+    if commit:
+        db.commit()
+        db.refresh(hotspot)
 
     return hotspot
 

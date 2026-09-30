@@ -1,3 +1,4 @@
+import json
 from sqlalchemy.orm import Session
 
 from app.db.repositories.hotspot_repository import (
@@ -28,12 +29,12 @@ Hotspot:
 - Dominant issue: {hotspot.dominant_issue}
 - Complaints: {hotspot.complaints}
 - Critical complaints: {hotspot.critical_complaints}
-- MPI: {hotspot.mpi}
-- Population: {hotspot.population}
-- Tribal percentage: {hotspot.tribal_percentage}
-- Distance to facility: {hotspot.distance_to_facility_km} km
-- Existing budget: ₹{hotspot.budget_lakhs} lakhs
-- Recommended scheme: {hotspot.recommended_scheme}
+- MPI: {hotspot.mpi_score}
+- Population: {hotspot.total_population}
+- Tribal percentage: {hotspot.tribal_population_pct}
+- Distance to facility: {hotspot.distance_to_nearest_facility_km} km
+- Existing budget: ₹{hotspot.sanctioned_budget_lakhs} lakhs
+- Recommended scheme: {hotspot.scheme_name}
 
 MCDA:
 - Demand score: {hotspot.demand_score}/30
@@ -88,7 +89,7 @@ def create_concept_note(
         "socio_economic_impact_justification": (
             concept.socio_economic_impact_justification
         ),
-        "risk_and_feasibility_flags": (
+        "risk_and_feasibility_flags": json.dumps(
             concept.risk_and_feasibility_flags
         ),
         "preliminary_timeline_months": (
